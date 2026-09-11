@@ -14,6 +14,8 @@ BRAND_ALIASES = {"苹果": "Apple", "apple": "Apple", "索尼": "索尼", "联�
 
 
 class QueryUnderstandingService:
+    """Convert shopping language into validated constraints and merge multi-turn updates."""
+
     def __init__(self, provider: ModelProvider | None = None) -> None:
         self.provider = provider or ModelProvider()
 
