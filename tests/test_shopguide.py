@@ -1,6 +1,9 @@
 from pathlib import Path
 from agents.orchestrator import Orchestrator
+from domain.models import ConversationState, Preference
 from repositories.database import Database
+from services.hybrid_retrieval import HybridRetrievalService
+from services.rag import RagService
 
 
 def make_db(tmp_path: Path) -> Database:
@@ -36,3 +39,17 @@ def test_clarifies_missing_category(tmp_path):
 def test_knowledge_answer_has_evidence(tmp_path):
     reply = Orchestrator(make_db(tmp_path)).handle("IP68 是什么意思？", "s4")
     assert reply.evidence_ids == ["knowledge:ip68"]
+
+
+def test_hybrid_retrieval_uses_two_recall_signals(tmp_path):
+    db = make_db(tmp_path)
+    state = ConversationState(session_id="hybrid", category="laptop", soft_preferences=[Preference(name="编程", weight=.8)])
+    candidates = HybridRetrievalService(db).recall(state, "适合编程的轻薄笔记本")
+    assert candidates
+    _, rrf, lexical, semantic = candidates[0]
+    assert rrf > 0 and lexical >= 0 and semantic >= 0
+
+
+def test_rag_returns_citable_evidence():
+    evidence = RagService().retrieve("IP68 是什么意思")
+    assert evidence and evidence[0].id == "knowledge:ip68"

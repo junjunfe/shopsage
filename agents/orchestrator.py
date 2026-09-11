@@ -5,12 +5,23 @@ import uuid
 
 from domain.models import AgentResponse, ConversationState, Route
 from repositories.database import Database
+from services.clarification import ClarificationService
+from services.hybrid_retrieval import HybridRetrievalService
+from services.ranking import RankingService
+from services.rag import RagService
+from services.response_validator import ResponseValidator
 from services.search import QueryUnderstandingService, RetrievalService
+from tools.catalog_tool import CatalogTool
+from tools.knowledge_tool import KnowledgeTool
 
 
 class Orchestrator:
     def __init__(self, db: Database):
-        self.db, self.understanding, self.retrieval = db, QueryUnderstandingService(), RetrievalService(db)
+        self.db, self.understanding = db, QueryUnderstandingService()
+        self.retrieval = RetrievalService(db)
+        self.hybrid, self.ranking = HybridRetrievalService(db), RankingService()
+        self.clarification, self.validator = ClarificationService(), ResponseValidator()
+        self.catalog, self.knowledge = CatalogTool(db), KnowledgeTool()
 
     def route(self, message: str, state: ConversationState) -> Route:
         low = message.lower()
@@ -36,21 +47,30 @@ class Orchestrator:
         parsed = self.understanding.extract(message, state)
         state = self.understanding.merge(state, parsed)
         if not state.category:
-            state.stage = "clarifying"; state.pending_question = {"field": "category"}; self.db.save_state(state)
-            return AgentResponse(session_id=session_id, intent=route.intent, stage=state.stage, text="你想找哪类商品？", suggestions=["笔记本", "手机", "蓝牙耳机"], trace_id=trace)
-        state.stage = "retrieving"; hits = self.retrieval.search(state, message)
+            question = self.clarification.select_question(state, 0)
+            state.stage = "clarifying"; state.pending_question = question; self.db.save_state(state)
+            return AgentResponse(session_id=session_id, intent=route.intent, stage=state.stage, text=question["question"], suggestions=question["options"], trace_id=trace)
+        state.stage = "retrieving"
+        candidates = self.hybrid.recall(state, message)
+        question = self.clarification.select_question(state, len(candidates))
+        if question:
+            state.stage = "clarifying"; state.pending_question = question; self.db.save_state(state)
+            return AgentResponse(session_id=session_id, intent=route.intent, stage=state.stage, text=question["question"], suggestions=question["options"], trace_id=trace)
+        hits = self.ranking.diversify(self.ranking.rank(candidates, state), 5)
         if not hits:
             state.stage = "recovering"; self.db.save_state(state)
             return AgentResponse(session_id=session_id, intent=route.intent, stage=state.stage, text=self.retrieval.relaxation(state), suggestions=["提高预算", "减少一个条件", "重新开始"], trace_id=trace)
         state.stage = "presenting"; state.candidate_product_ids = [h.product.id for h in hits]; state.displayed_product_ids = state.candidate_product_ids; state.pending_question = None
         self.db.save_state(state)
-        return AgentResponse(session_id=session_id, intent=route.intent, stage=state.stage, text=f"找到 {len(hits)} 款符合当前需求的商品，推荐理由均来自商品快照。", products=hits, suggestions=["更便宜一点", "比较第 1 和第 2 个", "重新开始"], evidence_ids=[h.product.id for h in hits], trace_id=trace)
+        response = AgentResponse(session_id=session_id, intent=route.intent, stage=state.stage, text=f"找到 {len(hits)} 款符合当前需求的商品，推荐理由均来自商品快照。", products=hits, suggestions=["更便宜一点", "比较第 1 和第 2 个", "重新开始"], evidence_ids=[h.product.id for h in hits], trace_id=trace)
+        self.validator.validate(response, [hit.product for hit in hits])
+        return response
 
     def _compare(self, message: str, state: ConversationState, trace: str) -> AgentResponse:
         nums = [int(n) - 1 for n in re.findall(r"第?([一二三四1234])个?", message.translate(str.maketrans("一二三四", "1234")))]
         ids = [state.displayed_product_ids[n] for n in nums if 0 <= n < len(state.displayed_product_ids)]
         if len(ids) < 2: ids = state.displayed_product_ids[:2]
-        products = self.db.get_products(ids[:4])
+        products = self.catalog.get_product_details(ids[:4])
         if len(products) < 2:
             return AgentResponse(session_id=state.session_id, intent="COMPARE", stage="clarifying", text="请先搜索商品，或说明要比较结果中的哪两款。", trace_id=trace)
         dimensions = sorted(set().union(*(p.attributes.keys() for p in products)))
@@ -60,14 +80,12 @@ class Orchestrator:
         return AgentResponse(session_id=state.session_id, intent="COMPARE", stage=state.stage, text=f"已按价格和关键参数对比 {products[0].title} 与 {products[1].title}。价格来自当前快照。", comparison=rows, evidence_ids=ids, trace_id=trace)
 
     def _qa(self, message: str, state: ConversationState, trace: str) -> AgentResponse:
-        knowledge = {"ip68": "IP68 表示设备具备规定条件下的防尘和防水能力；实际水深、时长及保修范围应以厂商说明为准。", "oled": "OLED 是像素自发光显示技术，通常有较高对比度和深黑表现。", "主动降噪": "主动降噪通过麦克风采集环境声并生成反向声波，主要降低持续的低频噪声。"}
-        key = next((k for k in knowledge if k in message.lower()), None)
-        if key:
-            return AgentResponse(session_id=state.session_id, intent="PRODUCT_QA", stage="presenting", text=knowledge[key], evidence_ids=[f"knowledge:{key}"], trace_id=trace)
-        products = self.db.get_products(state.displayed_product_ids[:1])
+        evidence = self.knowledge.retrieve_knowledge(message)
+        if evidence:
+            return AgentResponse(session_id=state.session_id, intent="PRODUCT_QA", stage="presenting", text=evidence[0].text, evidence_ids=[chunk.id for chunk in evidence], trace_id=trace)
+        products = self.catalog.get_product_details(state.displayed_product_ids[:1])
         text = "当前知识库没有足够证据回答这个问题。"
         evidence = []
         if products:
             text = f"当前商品数据提供的信息是：{products[0].description}。未列出的参数无法确认。"; evidence = [products[0].id]
         return AgentResponse(session_id=state.session_id, intent="PRODUCT_QA", stage="presenting", text=text, evidence_ids=evidence, trace_id=trace)
-

@@ -86,9 +86,7 @@ def compare(body: CompareRequest):
 
 @app.post("/api/v1/events", status_code=202)
 def event(body: EventRequest):
-    with db.connect() as con:
-        con.execute("INSERT OR IGNORE INTO user_events VALUES(?,?,?,?,?,datetime('now'))", (body.request_id, body.user_id, body.session_id, body.event_type, body.product_id))
-    return {"accepted": True, "request_id": body.request_id}
+    return {"accepted": db.record_event(body.request_id, body.event_type, body.product_id, body.session_id, body.user_id), "request_id": body.request_id}
 
 
 @app.post("/api/v1/admin/products/import")
@@ -97,3 +95,9 @@ def import_demo(request: Request):
     if expected and request.headers.get("x-admin-token") != expected: raise HTTPException(401, "invalid admin token")
     return {"imported": db.import_products(build_demo_products())}
 
+
+@app.post("/api/v1/admin/index/rebuild")
+def rebuild_index(request: Request):
+    expected = os.getenv("SHOPGUIDE_ADMIN_TOKEN")
+    if expected and request.headers.get("x-admin-token") != expected: raise HTTPException(401, "invalid admin token")
+    return {"reindexed": db.import_products(db.all_products())}

@@ -79,6 +79,8 @@ class Database:
                 CREATE VIRTUAL TABLE IF NOT EXISTS products_fts USING fts5(id UNINDEXED, title, description, tags, tokenize='unicode61');
                 CREATE TABLE IF NOT EXISTS conversations (session_id TEXT PRIMARY KEY, state TEXT NOT NULL, version INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS user_events (request_id TEXT PRIMARY KEY, user_id TEXT, session_id TEXT, event_type TEXT, product_id TEXT, created_at TEXT);
+                CREATE TABLE IF NOT EXISTS user_preferences (user_id TEXT, name TEXT, value TEXT, weight REAL, scope TEXT, updated_at TEXT, PRIMARY KEY(user_id, name, scope));
+                CREATE TABLE IF NOT EXISTS knowledge_documents (id TEXT PRIMARY KEY, content TEXT NOT NULL, source_type TEXT NOT NULL, product_id TEXT, version TEXT, active INTEGER NOT NULL DEFAULT 1);
             """)
             if con.execute("SELECT count(*) FROM products").fetchone()[0] == 0:
                 self.import_products(build_demo_products(), con)
@@ -138,3 +140,6 @@ class Database:
         with self.connect() as con:
             return con.execute("DELETE FROM conversations WHERE session_id=?", (session_id,)).rowcount > 0
 
+    def record_event(self, request_id: str, event_type: str, product_id: str, session_id: str | None, user_id: str | None) -> bool:
+        with self.connect() as con:
+            return con.execute("INSERT OR IGNORE INTO user_events VALUES(?,?,?,?,?,datetime('now'))", (request_id, user_id, session_id, event_type, product_id)).rowcount > 0

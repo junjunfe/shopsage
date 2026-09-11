@@ -15,7 +15,9 @@ ShopGuide Agent 是一个离线优先的电商导购对话系统。用户可以�
 - 商品快照、证据 ID、会话状态和幂等的用户行为事件；
 - REST API、SSE 流式对话协议和中文 Web Demo。
 
-目前的需求理解和知识问答使用本地规则与内置知识，尚未接入外部推理模型、Embedding 服务或向量 RAG 数据库。这些接口会在后续版本中扩展。
+项目按大模型应用的生产架构预留了 Provider、Structured Output、Embedding、RAG、Tool Calling、流式响应与离线评测边界。当前默认使用本地规则、哈希向量和内置知识，让项目在没有 API Key 时仍可运行；配置 OpenAI-compatible Provider 后可将需求理解和向量化替换为真实模型服务。
+
+详细的 Agent 架构、DSL、RRF、RAG 防幻觉与五阶段实施计划见 [Agent 架构文档](docs/agent_architecture.md)；测试、评测与面试讲解见 [评测与面试文档](docs/evaluation_and_interview.md)。
 
 ## 项目结构
 
@@ -54,6 +56,17 @@ shopsage/
 | 前端 | HTML、CSS、原生 JavaScript | 对话页面和商品卡片展示 |
 | 测试 | Pytest | 商品初始化、过滤、多轮修改、对比和问答验证 |
 | 部署 | Docker | 容器化运行 |
+
+### 大模型应用开发能力映射
+
+| 能力 | 当前实现 | 生产化接入方式 |
+| --- | --- | --- |
+| 模型 Provider | `config/model_provider.py` 的 OpenAI-compatible 抽象 | OpenAI、Azure OpenAI、vLLM 或企业模型网关 |
+| Structured Output | Pydantic DSL 与响应 Schema | 模型 JSON Schema/Function Calling 输出后校验与重试 |
+| Embedding | 本地哈希向量，保证离线可运行 | OpenAI/BGE Embedding + pgvector、FAISS 或 Chroma |
+| RAG | EvidenceChunk、KnowledgeTool、ResponseValidator | 文档切块、向量检索、重排序和带出处生成 |
+| Agent Tool Calling | CatalogTool、KnowledgeTool、Event Repository | 通过受限输入输出 Schema 接入商品、价格和库存服务 |
+| 流式交互 | FastAPI SSE：status/products/delta/done | 模型 token 流、工具状态和可观测 trace 联动 |
 
 ## 运行方式
 
