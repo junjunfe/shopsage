@@ -1,3 +1,5 @@
+"""Verify conversational search, refinement, retrieval, and grounding."""
+
 from pathlib import Path
 from agents.orchestrator import Orchestrator
 from domain.models import ConversationState, Preference
