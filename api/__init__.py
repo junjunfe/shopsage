@@ -1,2 +1,1 @@
-"""HTTP API package."""
-
+"""Define validated HTTP contracts for ShopGuide clients."""
