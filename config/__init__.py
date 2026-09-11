@@ -1,2 +1,1 @@
-"""Runtime configuration and model provider adapters."""
-
+"""Configure runtime settings and model provider adapters."""
