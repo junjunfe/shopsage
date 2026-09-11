@@ -1,5 +1,7 @@
 # ShopGuide Agent Architecture
 
+This document defines the responsibilities and interactions of the ShopGuide agents.
+
 ## Reference Mapping
 
 | Reference capability | ShopGuide capability | Purpose |
