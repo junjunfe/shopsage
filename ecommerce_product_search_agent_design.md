@@ -1,4 +1,4 @@
-# ShopGuide Agent Design Brief
+# ShopGuide Agent Product Design
 
 ## Overview
 
