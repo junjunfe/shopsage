@@ -13,7 +13,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class ModelProvider:
-    """Calls OpenAI, Azure-compatible gateways, or vLLM using the Chat Completions API."""
+    """Provide validated inference and embedding access through OpenAI-compatible APIs."""
     def __init__(self) -> None:
         self.base_url = os.getenv("SHOPGUIDE_MODEL_BASE_URL")
         self.api_key = os.getenv("SHOPGUIDE_MODEL_API_KEY")
