@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from config.model_provider import ModelProvider
+from domain.constraints import SearchConstraints
 from domain.models import ConversationState, Preference, Product, SearchHit
 from repositories.database import Database
 
@@ -12,7 +14,27 @@ BRAND_ALIASES = {"苹果": "Apple", "apple": "Apple", "索尼": "索尼", "联�
 
 
 class QueryUnderstandingService:
+    def __init__(self, provider: ModelProvider | None = None) -> None:
+        self.provider = provider or ModelProvider()
+
     def extract(self, text: str, state: ConversationState) -> dict[str, Any]:
+        model_result = self.provider.complete(
+            "Extract ecommerce search constraints from this user message. "
+            "Use only catalog fields: price_max, memory_gb_min, weight_kg_max, "
+            "battery_hours_min, brand, form, noise_cancelling. "
+            f"Message: {text}",
+            SearchConstraints,
+        )
+        if model_result:
+            parsed = {"hard_filters": {}, "soft": [], "exclusions": [], "use_cases": model_result.use_cases}
+            parsed["category"] = model_result.category
+            for constraint in model_result.must:
+                key = {"price": "price_max", "memory_gb": "memory_gb_min", "weight_kg": "weight_kg_max", "battery_hours": "battery_hours_min"}.get(constraint.field, constraint.field)
+                parsed["hard_filters"][key] = constraint.value
+            for constraint in model_result.must_not:
+                if constraint.field == "brand": parsed["exclusions"].append(str(constraint.value))
+            parsed["soft"] = [Preference(name=item.get("concept", ""), weight=float(item.get("weight", .7))) for item in model_result.should if item.get("concept")]
+            return parsed
         low = text.lower()
         result: dict[str, Any] = {"hard_filters": {}, "soft": [], "exclusions": [], "use_cases": []}
         for category, words in CATEGORY_WORDS.items():
@@ -103,4 +125,3 @@ class RetrievalService:
         if "price_max" in state.hard_filters: return f"当前条件无结果。可将预算从 ¥{state.hard_filters['price_max']:.0f} 上调 20% 后重试。"
         if state.exclusions: return f"当前条件无结果。可先取消品牌排除：{state.exclusions[-1]}。"
         return "当前条件无结果，可以减少一个硬性条件后重试。"
-
