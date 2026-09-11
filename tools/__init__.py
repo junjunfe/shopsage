@@ -1,2 +1,1 @@
-"""Explicit, schema-bounded Agent tools."""
-
+"""Expose bounded catalog and knowledge capabilities to Agents."""
