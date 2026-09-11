@@ -1,9 +1,10 @@
+# Python build and runtime files
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
 .env
+# Local application data
 shopguide.db
 htmlcov/
 .coverage
-
