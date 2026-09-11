@@ -1,2 +1,1 @@
-"""ShopGuide business services."""
-
+"""Implement understanding, retrieval, ranking, clarification, and grounding."""
