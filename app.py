@@ -1,3 +1,5 @@
+"""Expose the ShopGuide web experience, APIs, streaming events, and health checks."""
+
 from __future__ import annotations
 
 import json
