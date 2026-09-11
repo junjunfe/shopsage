@@ -1,6 +1,6 @@
 # ShopGuide Agent
 
-ShopGuide Agent is a conversational ecommerce search assistant. It turns a shopper's natural-language request into product constraints, maintains context across turns, retrieves eligible products, and returns grounded recommendations with prices, availability, and evidence.
+ShopGuide Agent guides product discovery through multi-turn search, grounded recommendations, comparison, and evidence-backed answers. It turns natural-language shopping needs into validated constraints while preserving context across the conversation.
 
 The application can run against an OpenAI-compatible inference API for structured query understanding and embeddings. It also includes an offline fallback so the demo remains usable when a model endpoint is unavailable.
 
