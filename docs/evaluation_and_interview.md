@@ -1,5 +1,7 @@
 # Evaluation and Interview Guide
 
+This guide defines the quality gates, evaluation layers, and portfolio narrative for ShopGuide Agent.
+
 ## Quality Strategy
 
 | Test level | Focus |
