@@ -2,6 +2,7 @@
 name = "shopguide-agent"
 version = "0.1.0"
 description = "Offline-first conversational ecommerce product search agent"
+keywords = ["agent", "ecommerce", "retrieval", "rag"]
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.110",
@@ -16,4 +17,3 @@ dev = ["pytest>=8", "httpx>=0.27"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-
